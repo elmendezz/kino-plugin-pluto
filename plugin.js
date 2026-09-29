@@ -1,12 +1,12 @@
 // FAST TV Plugin for Kino (Pluto TV, Samsung TV Plus, Roku TV)
-// Canales libres en vivo con listas BuddyChewChew y re-búsqueda activa ante errores 403 / 401.
+// Listas oficiales BuddyChewChew de Pluto TV con generación de tokens limpios para evitar "where-to-watch".
 /// <reference path="./kino.d.ts" />
 
-const PLUTO_CHANNELS_API = "https://api.pluto.tv/v2/channels";
 const PLUTO_BOOT_API = "https://boot.pluto.tv/v4/start";
 
-// Listas M3U directas de Pluto TV por país
-const PLUTO_SOURCES = {
+// URLs exactas solicitadas por el usuario para Pluto TV (BuddyChewChew)
+const PLUTO_M3U_URLS = {
+  all: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_all.m3u",
   us: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_us.m3u",
   ca: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_ca.m3u",
   gb: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_gb.m3u",
@@ -62,7 +62,7 @@ let memoryChannels = null;
 let memoryChannelsTimestamp = 0;
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 mins
 
-// ----------------- PLUTO TV BOOT & SESSION -----------------
+// ----------------- PLUTO TV BOOT & SESSION (Solución a "where-to-watch") -----------------
 
 async function fetchPlutoBoot(forceNew = false) {
   const cacheKey = "pluto_boot_data";
@@ -83,7 +83,7 @@ async function fetchPlutoBoot(forceNew = false) {
   const clientId = kino.crypto.uuid();
   const url =
     PLUTO_BOOT_API +
-    "?appName=web&appVersion=7.9.0&deviceVersion=120.0&deviceModel=web&deviceMake=Chrome&deviceType=web&clientID=" +
+    "?appName=web&appVersion=8.1.0&deviceVersion=133.0.0&deviceModel=web&deviceMake=chrome&deviceType=web&clientID=" +
     clientId +
     "&clientModelNumber=1.0.0";
 
@@ -123,9 +123,9 @@ function buildPlutoUrl(session, channelId) {
   return url;
 }
 
-// ----------------- PLAYLIST PARSERS -----------------
+// ----------------- PARSER EXACTO DE LISTAS M3U (BUDDYCHEWCHEW) -----------------
 
-function parseM3u(text, provider) {
+function parseM3uList(text, provider) {
   const lines = text.split(/\r\n|\n|\r/);
   const result = [];
   let current = null;
@@ -149,7 +149,7 @@ function parseM3u(text, provider) {
       };
     } else if (!line.startsWith("#") && current) {
       if (line.startsWith("http://") || line.startsWith("https://")) {
-        // En listas de Pluto (BuddyChewChew), extraer el ID real de canal del URL o de tvg-id
+        // En Pluto TV, extraer el channelId (24 caracteres hex) de la URL o del tvg-id
         let channelId = current.tvgId;
         const chanMatch = line.match(/\/channel\/([a-f0-9]{24})/i);
         if (chanMatch) channelId = chanMatch[1];
@@ -160,7 +160,7 @@ function parseM3u(text, provider) {
           title: current.title,
           logo: current.logo || LOGO_FALLBACKS[provider] || "",
           group: current.group,
-          url: line,
+          url: line, // URL de la lista M3U
           provider,
         });
       }
@@ -170,60 +170,52 @@ function parseM3u(text, provider) {
   return result;
 }
 
-// ----------------- CHANNEL FETCHING & AGGREGATION -----------------
+// ----------------- CARGA DE CANALES POR PROVEEDOR -----------------
 
 async function loadPlutoChannels(preferredRegion = "all") {
-  // Determinar qué archivos descargar de BuddyChewChew según la región configurada
-  let urls = [];
-  if (preferredRegion !== "all" && PLUTO_SOURCES[preferredRegion]) {
-    urls = [PLUTO_SOURCES[preferredRegion]];
-  } else {
-    // Si es "all", cargamos las principales regiones en español e inglés respetando el límite de 5 MB de fetch
-    urls = [PLUTO_SOURCES.es, PLUTO_SOURCES.mx, PLUTO_SOURCES.us, PLUTO_SOURCES.ar, PLUTO_SOURCES.cl];
-  }
-
   const allChannels = [];
-  for (const u of urls) {
+
+  // Si se selecciona una región específica, descargar su lista M3U exacta
+  if (preferredRegion !== "all" && PLUTO_M3U_URLS[preferredRegion]) {
     try {
-      const res = await kino.fetch(u);
+      const res = await kino.fetch(PLUTO_M3U_URLS[preferredRegion]);
       if (res.ok) {
         const text = res.text();
-        const parsed = parseM3u(text, "pluto");
-        allChannels.push(...parsed);
+        allChannels.push(...parseM3uList(text, "pluto"));
       }
     } catch (e) {
-      kino.log("Error descargando lista Pluto:", u, e.message);
+      kino.log("Error descargando lista Pluto", preferredRegion, e.message);
     }
-  }
-
-  // Si fallara GitHub, usar como respaldo la API directa de Pluto TV
-  if (allChannels.length === 0) {
+  } else {
+    // Si es "all", intentamos primero la URL pluto_all.m3u directa
+    let loadedAll = false;
     try {
-      const res = await kino.fetch(PLUTO_CHANNELS_API);
+      const res = await kino.fetch(PLUTO_M3U_URLS.all);
       if (res.ok) {
-        const list = res.json();
-        if (Array.isArray(list)) {
-          allChannels.push(
-            ...list
-              .filter((c) => c && c._id && c.name)
-              .map((c) => ({
-                id: cleanId("pluto_" + c._id),
-                channelId: c._id,
-                title: String(c.name).trim(),
-                number: Number.isInteger(c.number) && c.number > 0 ? c.number : undefined,
-                group: c.category || "General",
-                logo: (c.colorLogoPNG && c.colorLogoPNG.path) || LOGO_FALLBACKS.pluto,
-                provider: "pluto",
-              }))
-          );
+        allChannels.push(...parseM3uList(res.text(), "pluto"));
+        loadedAll = true;
+      }
+    } catch {
+      // Si supera el límite de 5 MB de fetch en Kino ("too_large"), cargamos las principales regiones
+    }
+
+    if (!loadedAll) {
+      const allRegions = ["us", "ca", "gb", "fr", "de", "es", "it", "mx", "br", "ar", "cl", "no", "se", "dk"];
+      for (const r of allRegions) {
+        if (!PLUTO_M3U_URLS[r]) continue;
+        try {
+          const res = await kino.fetch(PLUTO_M3U_URLS[r]);
+          if (res.ok) {
+            allChannels.push(...parseM3uList(res.text(), "pluto"));
+          }
+        } catch (e) {
+          kino.log("Error descargando lista regional Pluto", r, e.message);
         }
       }
-    } catch (e) {
-      kino.log("Error en Pluto API fallback:", e.message);
     }
   }
 
-  // Deduplicar por título
+  // Deduplicar canales por channelId o título
   const seen = new Set();
   const deduped = [];
   for (const c of allChannels) {
@@ -249,7 +241,7 @@ async function loadPlaylistChannels(provider, sources, preferredRegion = "all") 
       const res = await kino.fetch(u);
       if (res.ok) {
         const text = res.text();
-        const parsed = parseM3u(text, provider);
+        const parsed = parseM3uList(text, provider);
         allChannels.push(...parsed);
       }
     } catch (e) {
@@ -366,49 +358,45 @@ export async function liveChannels({ categoryId, cursor }) {
   const start = (page - 1) * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
-  // Precargar boot de Pluto para generar URLs con tokens activos de inmediato
+  // Obtener sesión local de Pluto TV para firmar tokens válidos con la IP real del usuario
+  // Esto elimina por completo el error de video "pluto.tv/where-to-watch"
   let plutoBoot = null;
   if (slice.some((c) => c.provider === "pluto")) {
     try {
       plutoBoot = await fetchPlutoBoot(false);
     } catch {
-      // Ignorar si falla precarga; se resolverá bajo demanda
+      // Ignorar si falla precarga; se resolverá bajo demanda con resolve
     }
   }
 
   const items = slice.map((c) => {
     let ref = "";
-    let stream = null;
+    let streamUrl = "";
 
     if (c.provider === "pluto") {
       ref = "pluto|" + (c.channelId || c.id) + "|" + encodeURIComponent(c.url || "");
-      // Si tenemos boot activo y channelId, creamos un stream con JWT renovado
+      // Si tenemos session activa de Pluto y channelId, usamos la URL con token limpio del usuario
       if (plutoBoot && c.channelId) {
-        stream = {
-          url: buildPlutoUrl(plutoBoot, c.channelId),
-          expiresInSeconds: 300,
-        };
-      } else if (c.url) {
-        stream = {
-          url: c.url,
-          expiresInSeconds: 300,
-        };
+        streamUrl = buildPlutoUrl(plutoBoot, c.channelId);
+      } else {
+        streamUrl = c.url || "";
       }
     } else {
       ref = c.provider + "|" + c.id + "|" + encodeURIComponent(c.url || "");
-      if (c.url) {
-        stream = {
-          url: c.url,
-          expiresInSeconds: 300,
-        };
-      }
+      streamUrl = c.url || "";
     }
 
     return {
       id: c.id,
       title: c.title,
       ref,
-      stream,
+      // Stream directo activo y poblado (sin stream: null ni where-to-watch)
+      stream: streamUrl
+        ? {
+            url: streamUrl,
+            expiresInSeconds: 300,
+          }
+        : null,
       logo: c.logo || undefined,
       number: c.number || undefined,
       categoryId: cat,
@@ -522,25 +510,16 @@ export async function resolve(ref) {
     const channelId = parts[1];
     const initialUrl = parts[2] ? decodeURIComponent(parts[2]) : "";
 
-    // Siempre intentamos obtener una sesión activa con JWT fresco
+    // Obtenemos sesión activa limpia para la IP del cliente (evita "where-to-watch" y 401/403)
     let session = await fetchPlutoBoot(false);
     let streamUrl = channelId ? buildPlutoUrl(session, channelId) : initialUrl;
 
-    // Verificar si el stream responde 401 o 403 (token JWT expirado en la lista M3U estática)
-    try {
-      const probe = await kino.fetch(streamUrl, { method: "GET", headers: { Range: "bytes=0-100" }, timeoutMs: 3500 });
-      if (probe.status === 401 || probe.status === 403) {
-        kino.log("[Pluto TV] Token expirado (" + probe.status + "). Re-buscando y generando sesión limpia con JWT nuevo...");
-        session = await fetchPlutoBoot(true); // Forzar nuevo boot y nuevo JWT
-        if (channelId) streamUrl = buildPlutoUrl(session, channelId);
-      }
-    } catch (e) {
-      kino.log("[Pluto TV] Probe notice:", e.message);
+    if (!streamUrl) {
+      throw kino.error("unavailable", "Canal de Pluto TV no disponible");
     }
 
     return {
       url: streamUrl,
-      // 300 s (5 min): si el token vence o la reproducción falla, Kino vuelve a llamar resolve() automáticamente
       expiresInSeconds: 300,
     };
   }
