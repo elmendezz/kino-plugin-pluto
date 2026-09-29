@@ -1,48 +1,53 @@
-// FAST TV Plugin for Kino (Pluto TV, Samsung TV Plus, Roku TV, Tubi, Plex)
-// Canales libres en vivo con stream directo y re-búsqueda activa ante errores 403 / 401.
+// FAST TV Plugin for Kino (Pluto TV, Samsung TV Plus, Roku TV)
+// Canales libres en vivo con listas BuddyChewChew y re-búsqueda activa ante errores 403 / 401.
 /// <reference path="./kino.d.ts" />
 
 const PLUTO_CHANNELS_API = "https://api.pluto.tv/v2/channels";
 const PLUTO_BOOT_API = "https://boot.pluto.tv/v4/start";
 
-const PLAYLIST_SOURCES = {
-  samsung: {
-    es: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/es_samsung.m3u",
-    mx: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/mx_samsung.m3u",
-    us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u",
-    uk: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk_samsung.m3u",
-  },
-  roku: {
-    us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_roku.m3u",
-  },
-  tubi: {
-    us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_tubi.m3u",
-  },
-  plex: {
-    us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_plex.m3u",
-    uk: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk_plex.m3u",
-  },
-  stirr: {
-    us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_stirr.m3u",
-  },
+// Listas M3U directas de Pluto TV por país
+const PLUTO_SOURCES = {
+  us: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_us.m3u",
+  ca: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_ca.m3u",
+  gb: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_gb.m3u",
+  fr: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_fr.m3u",
+  de: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_de.m3u",
+  es: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_es.m3u",
+  it: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_it.m3u",
+  mx: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_mx.m3u",
+  br: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_br.m3u",
+  ar: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_ar.m3u",
+  cl: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_cl.m3u",
+  no: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_no.m3u",
+  se: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_se.m3u",
+  dk: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_dk.m3u",
+};
+
+const SAMSUNG_SOURCES = {
+  es: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/es_samsung.m3u",
+  mx: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/mx_samsung.m3u",
+  us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u",
+  uk: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk_samsung.m3u",
+  ca: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ca_samsung.m3u",
+  it: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/it_samsung.m3u",
+  fr: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/fr_samsung.m3u",
+  de: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/de_samsung.m3u",
+};
+
+const ROKU_SOURCES = {
+  us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_roku.m3u",
 };
 
 const LOGO_FALLBACKS = {
   pluto: "https://images.pluto.tv/channels/5dcb62e63d4d8f0009f36881/colorLogoPNG_1760378798093.png",
   samsung: "https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/US2400013TO_20260929T044439SQUARE.png",
   roku: "https://raw.githubusercontent.com/iptv-org/iptv/master/images/roku.png",
-  tubi: "https://raw.githubusercontent.com/iptv-org/iptv/master/images/tubi.png",
-  plex: "https://raw.githubusercontent.com/iptv-org/iptv/master/images/plex.png",
-  stirr: "https://raw.githubusercontent.com/iptv-org/iptv/master/images/stirr.png",
 };
 
 const PROVIDER_NAMES = {
   pluto: "Pluto TV",
   samsung: "Samsung TV+",
   roku: "Roku TV",
-  tubi: "Tubi TV",
-  plex: "Plex TV",
-  stirr: "Stirr TV",
 };
 
 // IDs conformes a contrato: ^[A-Za-z0-9._~-]{1,128}$
@@ -118,7 +123,7 @@ function buildPlutoUrl(session, channelId) {
   return url;
 }
 
-// ----------------- PLAYLIST PARSER (M3U) -----------------
+// ----------------- PLAYLIST PARSERS -----------------
 
 function parseM3u(text, provider) {
   const lines = text.split(/\r\n|\n|\r/);
@@ -144,8 +149,14 @@ function parseM3u(text, provider) {
       };
     } else if (!line.startsWith("#") && current) {
       if (line.startsWith("http://") || line.startsWith("https://")) {
+        // En listas de Pluto (BuddyChewChew), extraer el ID real de canal del URL o de tvg-id
+        let channelId = current.tvgId;
+        const chanMatch = line.match(/\/channel\/([a-f0-9]{24})/i);
+        if (chanMatch) channelId = chanMatch[1];
+
         result.push({
-          id: cleanId(provider + "_" + (current.tvgId || current.title)),
+          id: cleanId(provider + "_" + (channelId || current.title)),
+          channelId: channelId || undefined,
           title: current.title,
           logo: current.logo || LOGO_FALLBACKS[provider] || "",
           group: current.group,
@@ -161,42 +172,72 @@ function parseM3u(text, provider) {
 
 // ----------------- CHANNEL FETCHING & AGGREGATION -----------------
 
-async function loadPlutoChannels() {
-  try {
-    const res = await kino.fetch(PLUTO_CHANNELS_API);
-    if (!res.ok) {
-      kino.log("Pluto API status:", res.status);
-      return [];
-    }
-    const list = res.json();
-    if (!Array.isArray(list)) return [];
-
-    return list
-      .filter((c) => c && c._id && c.name)
-      .map((c) => ({
-        id: cleanId("pluto_" + c._id),
-        channelId: c._id,
-        title: String(c.name).trim(),
-        number: Number.isInteger(c.number) && c.number > 0 ? c.number : undefined,
-        group: c.category || "General",
-        summary: c.summary || c.description || "",
-        logo: (c.colorLogoPNG && c.colorLogoPNG.path) || (c.thumbnail && c.thumbnail.path) || LOGO_FALLBACKS.pluto,
-        backdrop: (c.featuredImage && c.featuredImage.path) || undefined,
-        provider: "pluto",
-      }));
-  } catch (e) {
-    kino.log("Error cargando Pluto TV:", e.message);
-    return [];
+async function loadPlutoChannels(preferredRegion = "all") {
+  // Determinar qué archivos descargar de BuddyChewChew según la región configurada
+  let urls = [];
+  if (preferredRegion !== "all" && PLUTO_SOURCES[preferredRegion]) {
+    urls = [PLUTO_SOURCES[preferredRegion]];
+  } else {
+    // Si es "all", cargamos las principales regiones en español e inglés respetando el límite de 5 MB de fetch
+    urls = [PLUTO_SOURCES.es, PLUTO_SOURCES.mx, PLUTO_SOURCES.us, PLUTO_SOURCES.ar, PLUTO_SOURCES.cl];
   }
+
+  const allChannels = [];
+  for (const u of urls) {
+    try {
+      const res = await kino.fetch(u);
+      if (res.ok) {
+        const text = res.text();
+        const parsed = parseM3u(text, "pluto");
+        allChannels.push(...parsed);
+      }
+    } catch (e) {
+      kino.log("Error descargando lista Pluto:", u, e.message);
+    }
+  }
+
+  // Si fallara GitHub, usar como respaldo la API directa de Pluto TV
+  if (allChannels.length === 0) {
+    try {
+      const res = await kino.fetch(PLUTO_CHANNELS_API);
+      if (res.ok) {
+        const list = res.json();
+        if (Array.isArray(list)) {
+          allChannels.push(
+            ...list
+              .filter((c) => c && c._id && c.name)
+              .map((c) => ({
+                id: cleanId("pluto_" + c._id),
+                channelId: c._id,
+                title: String(c.name).trim(),
+                number: Number.isInteger(c.number) && c.number > 0 ? c.number : undefined,
+                group: c.category || "General",
+                logo: (c.colorLogoPNG && c.colorLogoPNG.path) || LOGO_FALLBACKS.pluto,
+                provider: "pluto",
+              }))
+          );
+        }
+      }
+    } catch (e) {
+      kino.log("Error en Pluto API fallback:", e.message);
+    }
+  }
+
+  // Deduplicar por título
+  const seen = new Set();
+  const deduped = [];
+  for (const c of allChannels) {
+    const key = (c.channelId || c.title).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(c);
+  }
+  return deduped;
 }
 
-async function loadPlaylistChannels(provider, preferredRegion = "all") {
-  const sources = PLAYLIST_SOURCES[provider] || {};
+async function loadPlaylistChannels(provider, sources, preferredRegion = "all") {
   let urls = [];
-
-  if (preferredRegion === "all") {
-    urls = Object.values(sources);
-  } else if (sources[preferredRegion]) {
+  if (preferredRegion !== "all" && sources[preferredRegion]) {
     urls = [sources[preferredRegion]];
   } else {
     urls = Object.values(sources);
@@ -216,7 +257,6 @@ async function loadPlaylistChannels(provider, preferredRegion = "all") {
     }
   }
 
-  // Deduplicar por título
   const seen = new Set();
   const deduped = [];
   for (const c of allChannels) {
@@ -239,19 +279,13 @@ async function getAllChannels(forceRefresh = false) {
 
   const tasks = [];
   if (platform === "all" || platform === "pluto") {
-    tasks.push(loadPlutoChannels());
+    tasks.push(loadPlutoChannels(region));
   }
   if (platform === "all" || platform === "samsung") {
-    tasks.push(loadPlaylistChannels("samsung", region));
+    tasks.push(loadPlaylistChannels("samsung", SAMSUNG_SOURCES, region));
   }
   if (platform === "all" || platform === "roku") {
-    tasks.push(loadPlaylistChannels("roku", region));
-  }
-  if (platform === "all" || platform === "tubi") {
-    tasks.push(loadPlaylistChannels("tubi", region));
-  }
-  if (platform === "all" || platform === "plex") {
-    tasks.push(loadPlaylistChannels("plex", region));
+    tasks.push(loadPlaylistChannels("roku", ROKU_SOURCES, region));
   }
 
   const results = await Promise.all(tasks);
@@ -265,7 +299,7 @@ async function getAllChannels(forceRefresh = false) {
 function channelToItem(c) {
   let ref = "";
   if (c.provider === "pluto") {
-    ref = "pluto|" + c.channelId;
+    ref = "pluto|" + (c.channelId || c.id) + "|" + encodeURIComponent(c.url || "");
   } else {
     ref = c.provider + "|" + c.id + "|" + encodeURIComponent(c.url || "");
   }
@@ -294,8 +328,6 @@ export async function liveCategories() {
     { id: "pluto", title: "Pluto TV" },
     { id: "samsung", title: "Samsung TV Plus" },
     { id: "roku", title: "Roku TV" },
-    { id: "tubi", title: "Tubi TV" },
-    { id: "plex", title: "Plex TV" },
     { id: "cine", title: "Cine y Películas" },
     { id: "noticias", title: "Noticias" },
     { id: "entretenimiento", title: "Entretenimiento y Series" },
@@ -317,10 +349,6 @@ export async function liveChannels({ categoryId, cursor }) {
     filtered = channels.filter((c) => c.provider === "samsung");
   } else if (cat === "roku") {
     filtered = channels.filter((c) => c.provider === "roku");
-  } else if (cat === "tubi") {
-    filtered = channels.filter((c) => c.provider === "tubi");
-  } else if (cat === "plex") {
-    filtered = channels.filter((c) => c.provider === "plex");
   } else if (cat === "cine") {
     filtered = channels.filter((c) => /cine|película|movie|film|cinema/i.test(c.group + " " + c.title));
   } else if (cat === "noticias") {
@@ -338,13 +366,13 @@ export async function liveChannels({ categoryId, cursor }) {
   const start = (page - 1) * pageSize;
   const slice = filtered.slice(start, start + pageSize);
 
-  // Precargar boot de Pluto si la página contiene canales de Pluto TV
+  // Precargar boot de Pluto para generar URLs con tokens activos de inmediato
   let plutoBoot = null;
   if (slice.some((c) => c.provider === "pluto")) {
     try {
       plutoBoot = await fetchPlutoBoot(false);
     } catch {
-      // Si falla boot inicial, se resolverá individualmente con resolve()
+      // Ignorar si falla precarga; se resolverá bajo demanda
     }
   }
 
@@ -353,10 +381,16 @@ export async function liveChannels({ categoryId, cursor }) {
     let stream = null;
 
     if (c.provider === "pluto") {
-      ref = "pluto|" + c.channelId;
-      if (plutoBoot) {
+      ref = "pluto|" + (c.channelId || c.id) + "|" + encodeURIComponent(c.url || "");
+      // Si tenemos boot activo y channelId, creamos un stream con JWT renovado
+      if (plutoBoot && c.channelId) {
         stream = {
           url: buildPlutoUrl(plutoBoot, c.channelId),
+          expiresInSeconds: 300,
+        };
+      } else if (c.url) {
+        stream = {
+          url: c.url,
           expiresInSeconds: 300,
         };
       }
@@ -393,8 +427,6 @@ export async function home() {
   const plutoSample = channels.filter((c) => c.provider === "pluto").slice(0, 30);
   const samsungSample = channels.filter((c) => c.provider === "samsung").slice(0, 30);
   const rokuSample = channels.filter((c) => c.provider === "roku").slice(0, 30);
-  const tubiSample = channels.filter((c) => c.provider === "tubi").slice(0, 30);
-  const plexSample = channels.filter((c) => c.provider === "plex").slice(0, 30);
   const newsSample = channels.filter((c) => /noticia|news|clima/i.test(c.group + " " + c.title)).slice(0, 30);
 
   const rows = [];
@@ -422,22 +454,6 @@ export async function home() {
       items: rokuSample.map(channelToItem),
     });
   }
-  if (tubiSample.length > 0) {
-    rows.push({
-      id: "tubi_featured",
-      ref: "tubi_featured",
-      title: "Tubi TV Canales FAST",
-      items: tubiSample.map(channelToItem),
-    });
-  }
-  if (plexSample.length > 0) {
-    rows.push({
-      id: "plex_featured",
-      ref: "plex_featured",
-      title: "Plex TV Canales en Vivo",
-      items: plexSample.map(channelToItem),
-    });
-  }
   if (newsSample.length > 0) {
     rows.push({
       id: "news_live",
@@ -462,10 +478,6 @@ export async function browse(ref, cursor) {
     filtered = channels.filter((c) => c.provider === "samsung");
   } else if (ref === "roku_featured") {
     filtered = channels.filter((c) => c.provider === "roku");
-  } else if (ref === "tubi_featured") {
-    filtered = channels.filter((c) => c.provider === "tubi");
-  } else if (ref === "plex_featured") {
-    filtered = channels.filter((c) => c.provider === "plex");
   } else if (ref === "news_live") {
     filtered = channels.filter((c) => /noticia|news|clima/i.test(c.group + " " + c.title));
   } else {
@@ -508,19 +520,19 @@ export async function resolve(ref) {
   // Caso A: Pluto TV
   if (provider === "pluto") {
     const channelId = parts[1];
-    if (!channelId) throw kino.error("not_found", "ID de Pluto TV no especificado");
+    const initialUrl = parts[2] ? decodeURIComponent(parts[2]) : "";
 
-    // Intento 1: con sesión actual/en caché
+    // Siempre intentamos obtener una sesión activa con JWT fresco
     let session = await fetchPlutoBoot(false);
-    let streamUrl = buildPlutoUrl(session, channelId);
+    let streamUrl = channelId ? buildPlutoUrl(session, channelId) : initialUrl;
 
-    // Verificar si el stream responde 401 o 403 (token de sesión expirado)
+    // Verificar si el stream responde 401 o 403 (token JWT expirado en la lista M3U estática)
     try {
-      const probe = await kino.fetch(streamUrl, { method: "HEAD", timeoutMs: 3500 });
+      const probe = await kino.fetch(streamUrl, { method: "GET", headers: { Range: "bytes=0-100" }, timeoutMs: 3500 });
       if (probe.status === 401 || probe.status === 403) {
-        kino.log("[Pluto TV] Error " + probe.status + " en sesión. Renovando credenciales y re-buscando...");
+        kino.log("[Pluto TV] Token expirado (" + probe.status + "). Re-buscando y generando sesión limpia con JWT nuevo...");
         session = await fetchPlutoBoot(true); // Forzar nuevo boot y nuevo JWT
-        streamUrl = buildPlutoUrl(session, channelId);
+        if (channelId) streamUrl = buildPlutoUrl(session, channelId);
       }
     } catch (e) {
       kino.log("[Pluto TV] Probe notice:", e.message);
@@ -533,8 +545,8 @@ export async function resolve(ref) {
     };
   }
 
-  // Caso B: Samsung TV Plus, Roku TV, Tubi, Plex (M3U streams)
-  if (provider === "samsung" || provider === "roku" || provider === "tubi" || provider === "plex" || provider === "stirr") {
+  // Caso B: Samsung TV Plus o Roku TV (M3U streams)
+  if (provider === "samsung" || provider === "roku") {
     const chanId = parts[1];
     let streamUrl = decodeURIComponent(parts[2] || "");
 

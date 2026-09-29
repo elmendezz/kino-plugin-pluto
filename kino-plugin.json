@@ -1,7 +1,7 @@
 {
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "1.1.2",
+  "version": "1.2.2",
   "apiVersion": 3,
   "entry": "plugin.js",
   "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV con auto-renovación ante 401/403",
