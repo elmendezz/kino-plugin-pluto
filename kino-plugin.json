@@ -1,14 +1,81 @@
 {
-  "id": "archive-org",
-  "name": "Internet Archive",
+  "id": "pluto-tv",
+  "name": "FAST TV (Pluto, Samsung, Roku)",
   "version": "1.1.1",
-  "apiVersion": 1,
+  "apiVersion": 3,
   "entry": "plugin.js",
-  "description": "Películas de dominio público y televisión clásica de archive.org",
-  "author": "kinotvapp",
-  "homepage": "https://github.com/kinotvapp/kino-plugin-archive",
-  "hosts": ["archive.org", "*.archive.org"],
-  "capabilities": ["search", "home", "browse", "episodes", "resolve"],
-  "color": "#E0A030",
-  "icon": "icon.png"
+  "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV con auto-renovación ante 401/403",
+  "author": "elmendezz",
+  "homepage": "https://github.com/elmendezz/kino-plugin-pluto",
+  "hosts": [
+    "pluto.tv",
+    "*.pluto.tv",
+    "raw.githubusercontent.com",
+    "i.mjh.nz",
+    "*.cloudfront.net",
+    "*.wurl.tv",
+    "*.amagi.tv",
+    "*.samsungcloud.tv",
+    "*.akamaihd.net"
+  ],
+  "capabilities": [
+    "search",
+    "home",
+    "browse",
+    "resolve",
+    "channels"
+  ],
+  "liveStreamHosts": "any",
+  "color": "#1955FD",
+  "icon": "icon.png",
+  "settings": [
+    {
+      "key": "region",
+      "label": "Región de canales",
+      "type": "select",
+      "default": "all",
+      "options": [
+        {
+          "value": "all",
+          "label": "Todas las regiones"
+        },
+        {
+          "value": "es",
+          "label": "España"
+        },
+        {
+          "value": "mx",
+          "label": "México / Latinoamérica"
+        },
+        {
+          "value": "us",
+          "label": "Estados Unidos"
+        }
+      ]
+    },
+    {
+      "key": "platform",
+      "label": "Plataforma principal",
+      "type": "select",
+      "default": "all",
+      "options": [
+        {
+          "value": "all",
+          "label": "Todas (Pluto, Samsung, Roku)"
+        },
+        {
+          "value": "pluto",
+          "label": "Solo Pluto TV"
+        },
+        {
+          "value": "samsung",
+          "label": "Solo Samsung TV Plus"
+        },
+        {
+          "value": "roku",
+          "label": "Solo Roku TV"
+        }
+      ]
+    }
+  ]
 }
