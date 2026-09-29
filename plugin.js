@@ -92,7 +92,7 @@ async function fetchPlutoBoot(forceNew = false) {
     throw kino.error("unavailable", "Pluto TV no responde (status " + res.status + ")");
   }
 
-  const data = res.json();
+  const data = await res.json();
   const stitcher = data.servers && data.servers.stitcher ? data.servers.stitcher : "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv";
   const sessionToken = data.sessionToken || "";
   const stitcherParams = data.stitcherParams || "";
@@ -180,7 +180,7 @@ async function loadPlutoChannels(preferredRegion = "all") {
     try {
       const res = await kino.fetch(PLUTO_M3U_URLS[preferredRegion]);
       if (res.ok) {
-        const text = res.text();
+        const text = await res.text();
         allChannels.push(...parseM3uList(text, "pluto"));
       }
     } catch (e) {
@@ -192,7 +192,7 @@ async function loadPlutoChannels(preferredRegion = "all") {
     try {
       const res = await kino.fetch(PLUTO_M3U_URLS.all);
       if (res.ok) {
-        allChannels.push(...parseM3uList(res.text(), "pluto"));
+        allChannels.push(...parseM3uList(await res.text(), "pluto"));
         loadedAll = true;
       }
     } catch {
@@ -206,7 +206,7 @@ async function loadPlutoChannels(preferredRegion = "all") {
         try {
           const res = await kino.fetch(PLUTO_M3U_URLS[r]);
           if (res.ok) {
-            allChannels.push(...parseM3uList(res.text(), "pluto"));
+            allChannels.push(...parseM3uList(await res.text(), "pluto"));
           }
         } catch (e) {
           kino.log("Error descargando lista regional Pluto", r, e.message);
@@ -240,7 +240,7 @@ async function loadPlaylistChannels(provider, sources, preferredRegion = "all") 
     try {
       const res = await kino.fetch(u);
       if (res.ok) {
-        const text = res.text();
+        const text = await res.text();
         const parsed = parseM3uList(text, provider);
         allChannels.push(...parsed);
       }
