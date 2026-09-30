@@ -1,10 +1,10 @@
-﻿{
+{
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "apiVersion": 3,
   "entry": "plugin.js",
-  "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV con auto-renovacion ante 401/403",
+  "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV",
   "author": "elmendezz",
   "homepage": "https://github.com/elmendezz/kino-plugin-pluto",
   "hosts": [
