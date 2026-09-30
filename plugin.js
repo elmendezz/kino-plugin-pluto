@@ -1,25 +1,13 @@
 // FAST TV Plugin for Kino (Pluto TV, Samsung TV Plus, Roku TV)
-// liveChannels descarga 1 M3U regional, firma JWT de Pluto, y pagina a 200 canales.
-// liveStreamHosts: "any" requiere que no usemos KinoPlaylist.
+// Pluto: usa la API nativa de canales (499 KB) en vez de M3Us de 1.3 MB.
+// Samsung/Roku: M3Us ligeros de iptv-org (50 KB / 4 KB).
 /// <reference path="./kino.d.ts" />
 
-const PLUTO_BOOT_API = "https://boot.pluto.tv/v4/start";
+// ---- URLs ----
+var BOOT_URL = "https://boot.pluto.tv/v4/start";
+var CHANNELS_URL = "https://service-channels.clusters.pluto.tv/v2/guide/channels";
 
-const PLUTO_M3U = {
-  us: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_us.m3u",
-  ca: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_ca.m3u",
-  gb: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_gb.m3u",
-  fr: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_fr.m3u",
-  de: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_de.m3u",
-  es: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_es.m3u",
-  it: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_it.m3u",
-  mx: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_mx.m3u",
-  br: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_br.m3u",
-  ar: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_ar.m3u",
-  cl: "https://raw.githubusercontent.com/BuddyChewChew/pluto/main/pluto_cl.m3u",
-};
-
-const SAMSUNG_M3U = {
+var SAMSUNG_M3U = {
   us: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u",
   es: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/es_samsung.m3u",
   mx: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/mx_samsung.m3u",
@@ -30,18 +18,143 @@ const SAMSUNG_M3U = {
   de: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/de_samsung.m3u",
 };
 
-const ROKU_M3U_URL = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_roku.m3u";
+var ROKU_M3U_URL = "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_roku.m3u";
 
-// ---- Cache por proveedor ----
-var channelCache = {};
-var cacheTimes = {};
-var CACHE_TTL = 25 * 60 * 1000;
+// ---- Cache ----
+var _cache = {};
+var _cacheTimes = {};
+var CACHE_TTL = 20 * 60 * 1000;
 
 function cleanId(raw) {
   return String(raw || "ch").replace(/[^A-Za-z0-9._~-]/g, "_").slice(0, 120);
 }
 
-// ---- M3U Parser ----
+// ---- Pluto TV: Boot Session ----
+
+function _getPlutoSessionFromStorage() {
+  try {
+    var raw = kino.storage.get("pb6");
+    if (raw) {
+      var p = JSON.parse(raw);
+      if (p && p.sessionToken && p.stitcher) return p;
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+async function getPlutoSession() {
+  var cached = _getPlutoSessionFromStorage();
+  if (cached) return cached;
+
+  var clientId = kino.crypto.uuid();
+  var url = BOOT_URL +
+    "?appName=web&appVersion=8.1.0&deviceVersion=133.0.0" +
+    "&deviceModel=web&deviceMake=chrome&deviceType=web" +
+    "&clientID=" + clientId + "&clientModelNumber=1.0.0";
+
+  var res = await kino.fetch(url, { timeoutMs: 10000 });
+  if (!res.ok) throw kino.error("unavailable", "Boot fallo: " + res.status);
+
+  var data = res.json();
+  var obj = {
+    stitcher: (data.servers && data.servers.stitcher)
+      ? data.servers.stitcher
+      : "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv",
+    sessionToken:   data.sessionToken   || "",
+    stitcherParams: data.stitcherParams || "",
+    clientId:       clientId,
+  };
+  try { kino.storage.set("pb6", JSON.stringify(obj), { ttlMs: 1200000 }); } catch (e) { /* ignore */ }
+  return obj;
+}
+
+function buildPlutoStreamUrl(session, stitchedPath) {
+  var url = session.stitcher + stitchedPath;
+  var sep = stitchedPath.indexOf("?") >= 0 ? "&" : "?";
+  var params = [];
+  if (session.stitcherParams) {
+    params.push(session.stitcherParams);
+  } else {
+    params.push(
+      "appName=web",
+      "appVersion=8.1.0",
+      "deviceVersion=133.0.0",
+      "deviceModel=web",
+      "deviceMake=chrome",
+      "deviceType=web",
+      "clientModelNumber=1.0.0",
+      "clientID=" + encodeURIComponent(session.clientId)
+    );
+  }
+  if (session.sessionToken)   params.push("jwt=" + encodeURIComponent(session.sessionToken));
+  return url + sep + params.join("&");
+}
+
+// ---- Pluto TV: Channels API (499 KB, mucho mas rapido que M3U de 1.3 MB) ----
+
+async function getPlutoChannels() {
+  var now = Date.now();
+  if (_cache.pluto && (now - (_cacheTimes.pluto || 0)) < CACHE_TTL) {
+    return _cache.pluto;
+  }
+
+  var session = await getPlutoSession();
+
+  var url = CHANNELS_URL +
+    "?appName=web&appVersion=8.1.0&deviceType=web&deviceVersion=133.0.0";
+
+  var res = await kino.fetch(url, {
+    timeoutMs: 15000,
+    headers: { "Authorization": "Bearer " + session.sessionToken },
+  });
+
+  if (!res.ok) {
+    kino.log("[pluto] Channels API HTTP " + res.status);
+    return _cache.pluto || [];
+  }
+
+  var body = res.json();
+  var rawChannels = body.data || body || [];
+  if (!Array.isArray(rawChannels)) {
+    // Si body es un array directamente
+    rawChannels = [];
+  }
+
+  var channels = [];
+  for (var i = 0; i < rawChannels.length; i++) {
+    var ch = rawChannels[i];
+    if (!ch || !ch.id) continue;
+
+    // Extraer logo de images[]
+    var logo = "";
+    if (ch.images && ch.images.length) {
+      for (var j = 0; j < ch.images.length; j++) {
+        if (ch.images[j].type === "colorLogoPNG") {
+          logo = ch.images[j].url;
+          break;
+        }
+      }
+      if (!logo) logo = ch.images[0].url || "";
+    }
+
+    // stitched.path = "/stitch/hls/channel/<id>/master.m3u8"
+    var stitchedPath = (ch.stitched && ch.stitched.path) ? ch.stitched.path : "";
+
+    channels.push({
+      id: ch.id,
+      name: ch.name || ch.slug || "Canal",
+      number: ch.number || undefined,
+      logo: logo,
+      stitchedPath: stitchedPath,
+    });
+  }
+
+  _cache.pluto = channels;
+  _cacheTimes.pluto = now;
+  return channels;
+}
+
+// ---- M3U Parser (Samsung / Roku) ----
 
 function parseM3u(text) {
   var lines = text.split(/\r?\n/);
@@ -61,10 +174,8 @@ function parseM3u(text) {
       };
     } else if (line.charAt(0) !== "#" && cur) {
       if (line.indexOf("http") === 0) {
-        var chanM = line.match(/\/channel\/([a-f0-9]{24})\//i);
         result.push({
-          channelId: chanM ? chanM[1] : (cur.tvgId || null),
-          title: cur.title.replace(/\s*\(\d+p\)/gi, "").replace(/\s*\[Geo-blocked\]/gi, "").trim(),
+          title: cur.title,
           logo: cur.logo,
           url: line,
         });
@@ -75,79 +186,30 @@ function parseM3u(text) {
   return result;
 }
 
-// Descarga y cachea M3U. kino.fetch tiene limite de 5 MB; las M3U regionales ~1-2 MB.
-async function getChannels(cacheKey, m3uUrl) {
+async function getM3uChannels(cacheKey, m3uUrl) {
   var now = Date.now();
-  if (channelCache[cacheKey] && (now - (cacheTimes[cacheKey] || 0)) < CACHE_TTL) {
-    return channelCache[cacheKey];
+  if (_cache[cacheKey] && (now - (_cacheTimes[cacheKey] || 0)) < CACHE_TTL) {
+    return _cache[cacheKey];
   }
   try {
-    var res = await kino.fetch(m3uUrl, { timeoutMs: 25000 });
+    var res = await kino.fetch(m3uUrl, { timeoutMs: 15000 });
     if (!res.ok) {
       kino.log("[" + cacheKey + "] HTTP " + res.status);
-      return channelCache[cacheKey] || [];
+      return _cache[cacheKey] || [];
     }
-    var text = res.text(); // SINCRONO en Kino SDK
+    var text = res.text();
     var parsed = parseM3u(text);
-    channelCache[cacheKey] = parsed;
-    cacheTimes[cacheKey] = now;
+    _cache[cacheKey] = parsed;
+    _cacheTimes[cacheKey] = now;
     return parsed;
   } catch (e) {
-    kino.log("[" + cacheKey + "] fetch error: " + e.message);
-    return channelCache[cacheKey] || [];
+    kino.log("[" + cacheKey + "] error: " + e.message);
+    return _cache[cacheKey] || [];
   }
-}
-
-// ---- Pluto TV Boot ----
-
-async function getPlutoSession() {
-  var key = "pluto_boot_v5";
-  try {
-    var raw = kino.storage.get(key);
-    if (raw) {
-      var p = JSON.parse(raw);
-      if (p && p.stitcher && p.sessionToken) return p;
-    }
-  } catch (e) { /* ignore */ }
-
-  var clientId = kino.crypto.uuid();
-  var url = PLUTO_BOOT_API +
-    "?appName=web&appVersion=8.1.0&deviceVersion=133.0.0" +
-    "&deviceModel=web&deviceMake=chrome&deviceType=web" +
-    "&clientID=" + clientId + "&clientModelNumber=1.0.0";
-
-  var res = await kino.fetch(url, { timeoutMs: 12000 });
-  if (!res.ok) throw kino.error("unavailable", "Pluto Boot " + res.status);
-  var data = res.json(); // SINCRONO
-
-  var obj = {
-    stitcher: (data.servers && data.servers.stitcher)
-      ? data.servers.stitcher
-      : "https://cfd-v4-service-channel-stitcher-use1-1.prd.pluto.tv",
-    sessionToken:   data.sessionToken   || "",
-    stitcherParams: data.stitcherParams || "",
-    clientId: clientId,
-  };
-  try { kino.storage.set(key, JSON.stringify(obj), { ttlMs: 1500000 }); } catch (e) { /* ignore */ }
-  return obj;
-}
-
-function buildPlutoUrl(session, channelId) {
-  var base = session.stitcher + "/v2/stitch/hls/channel/" + encodeURIComponent(channelId) + "/master.m3u8";
-  var params = [
-    "appName=web", "appVersion=8.1.0", "deviceVersion=133.0.0",
-    "deviceModel=web", "deviceMake=chrome", "deviceType=web",
-    "clientModelNumber=1.0.0",
-    "clientID=" + encodeURIComponent(session.clientId),
-  ];
-  if (session.stitcherParams) params.push(session.stitcherParams);
-  if (session.sessionToken)   params.push("jwt=" + encodeURIComponent(session.sessionToken));
-  return base + "?" + params.join("&");
 }
 
 // ======== KINO EXPORTS ========
 
-// Solo 3 categorias fijas - sin KinoPlaylist (incompatible con liveStreamHosts:"any")
 export async function liveCategories() {
   var platform = String(kino.config.get("platform") || "all");
   var cats = [];
@@ -157,44 +219,48 @@ export async function liveCategories() {
   return cats;
 }
 
-// Carga M3U regional + firma JWT Pluto. Max 500 items por pagina (contrato SDK).
 export async function liveChannels({ categoryId, cursor }) {
+  var PAGE  = 300;
+  var page  = cursor ? parseInt(cursor, 10) : 1;
+  var start = (page - 1) * PAGE;
   var region = String(kino.config.get("region") || "us");
-  var PAGE   = 250;
-  var page   = cursor ? parseInt(cursor, 10) : 1;
-  var start  = (page - 1) * PAGE;
 
+  // ---- PLUTO TV ----
   if (categoryId === "pluto") {
-    var m3uUrl = PLUTO_M3U[region] || PLUTO_M3U.us;
-    var channels = await getChannels("pluto_" + region, m3uUrl);
-
-    // Obtener sesion Pluto para JWT fresco
-    var session = null;
-    try { session = await getPlutoSession(); } catch (e) {
-      kino.log("[pluto] session error:", e.message);
+    var channels = await getPlutoChannels();
+    var session  = _getPlutoSessionFromStorage();
+    if (!session) {
+      try { session = await getPlutoSession(); } catch (e) {
+        kino.log("[pluto] session fail:", e.message);
+      }
     }
 
     var slice = channels.slice(start, start + PAGE);
     var items = [];
     for (var i = 0; i < slice.length; i++) {
       var c = slice[i];
-      var cid = c.channelId;
-      var streamUrl = (session && cid) ? buildPlutoUrl(session, cid) : c.url;
+      var streamUrl = "";
+      if (session && c.stitchedPath) {
+        streamUrl = buildPlutoStreamUrl(session, c.stitchedPath);
+      }
+
       items.push({
-        id:         cleanId("p_" + (cid || c.title)),
-        title:      c.title,
+        id:         cleanId("p_" + c.id),
+        title:      c.name,
         logo:       c.logo || undefined,
+        number:     c.number || undefined,
         categoryId: "pluto",
-        ref:        cid ? ("pluto|" + cid) : undefined,
-        stream:     { url: streamUrl, expiresInSeconds: 240 },
+        ref:        "pluto|" + c.id + "|" + encodeURIComponent(c.stitchedPath || ""),
+        stream:     streamUrl ? { url: streamUrl, expiresInSeconds: 240 } : undefined,
       });
     }
     return { items: items, next: (start + PAGE < channels.length) ? String(page + 1) : null };
   }
 
+  // ---- SAMSUNG TV PLUS ----
   if (categoryId === "samsung") {
     var m3uUrl = SAMSUNG_M3U[region] || SAMSUNG_M3U.us;
-    var channels = await getChannels("samsung_" + region, m3uUrl);
+    var channels = await getM3uChannels("sam_" + region, m3uUrl);
     var slice = channels.slice(start, start + PAGE);
     var items = [];
     for (var i = 0; i < slice.length; i++) {
@@ -210,8 +276,9 @@ export async function liveChannels({ categoryId, cursor }) {
     return { items: items, next: (start + PAGE < channels.length) ? String(page + 1) : null };
   }
 
+  // ---- ROKU TV ----
   if (categoryId === "roku") {
-    var channels = await getChannels("roku", ROKU_M3U_URL);
+    var channels = await getM3uChannels("roku", ROKU_M3U_URL);
     var slice = channels.slice(start, start + PAGE);
     var items = [];
     for (var i = 0; i < slice.length; i++) {
@@ -242,23 +309,32 @@ export async function search(query) {
   return [];
 }
 
-// Renueva JWT de Pluto TV cuando stream expira (expiresInSeconds: 240).
+// resolve: renueva JWT Pluto TV cuando stream expira
 export async function resolve(ref) {
   if (!ref || typeof ref !== "string")
     throw kino.error("not_found", "ref invalida");
 
-  // pluto|<channelId> -> JWT fresco
+  // pluto|<channelId>|<encodedStitchedPath>
   if (ref.indexOf("pluto|") === 0) {
-    var channelId = ref.split("|")[1];
-    if (!channelId) throw kino.error("not_found", "sin channelId");
+    var parts = ref.split("|");
+    var channelId = parts[1] || "";
+    var stitchedPath = parts[2] ? decodeURIComponent(parts[2]) : "";
+
+    if (!stitchedPath && channelId) {
+      stitchedPath = "/stitch/hls/channel/" + channelId + "/master.m3u8";
+    }
+    if (!stitchedPath) throw kino.error("not_found", "sin stitchedPath");
+
     var session = await getPlutoSession();
-    return { url: buildPlutoUrl(session, channelId), expiresInSeconds: 240 };
+    return {
+      url: buildPlutoStreamUrl(session, stitchedPath),
+      expiresInSeconds: 240,
+    };
   }
 
-  // URL directa
-  if (ref.indexOf("https://") === 0 || ref.indexOf("http://") === 0) {
+  // URL directa (Samsung/Roku)
+  if (ref.indexOf("https://") === 0 || ref.indexOf("http://") === 0)
     return { url: ref, expiresInSeconds: 3600 };
-  }
 
   throw kino.error("not_found", "ref desconocida");
 }

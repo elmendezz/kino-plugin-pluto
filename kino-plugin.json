@@ -1,7 +1,7 @@
 {
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "apiVersion": 3,
   "entry": "plugin.js",
   "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV",
