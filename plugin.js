@@ -48,8 +48,8 @@ async function getPlutoSession() {
 
   var clientId = kino.crypto.uuid();
   var url = BOOT_URL +
-    "?appName=web&appVersion=8.1.0&deviceVersion=133.0.0" +
-    "&deviceModel=web&deviceMake=chrome&deviceType=web" +
+    "?appName=roku&appVersion=1.0.0&deviceVersion=1.0.0" +
+    "&deviceModel=Roku&deviceMake=Roku&deviceType=roku" +
     "&clientID=" + clientId + "&clientModelNumber=1.0.0";
 
   var res = await kino.fetch(url, { timeoutMs: 10000 });
@@ -76,12 +76,12 @@ function buildPlutoStreamUrl(session, stitchedPath) {
     params.push(session.stitcherParams);
   } else {
     params.push(
-      "appName=web",
-      "appVersion=8.1.0",
-      "deviceVersion=133.0.0",
-      "deviceModel=web",
-      "deviceMake=chrome",
-      "deviceType=web",
+      "appName=roku",
+      "appVersion=1.0.0",
+      "deviceVersion=1.0.0",
+      "deviceModel=Roku",
+      "deviceMake=Roku",
+      "deviceType=roku",
       "clientModelNumber=1.0.0",
       "clientID=" + encodeURIComponent(session.clientId)
     );
@@ -101,7 +101,7 @@ async function getPlutoChannels() {
   var session = await getPlutoSession();
 
   var url = CHANNELS_URL +
-    "?appName=web&appVersion=8.1.0&deviceType=web&deviceVersion=133.0.0";
+    "?appName=roku&appVersion=1.0.0&deviceType=roku&deviceVersion=1.0.0";
 
   var res = await kino.fetch(url, {
     timeoutMs: 15000,
