@@ -1,7 +1,7 @@
 {
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "2.2.1",
+  "version": "2.3.2",
   "apiVersion": 3,
   "entry": "plugin.js",
   "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV",
@@ -34,8 +34,12 @@
       "key": "region",
       "label": "Region de canales",
       "type": "select",
-      "default": "us",
+      "default": "all",
       "options": [
+        {
+          "value": "all",
+          "label": "Todas"
+        },
         {
           "value": "us",
           "label": "Estados Unidos"
@@ -79,6 +83,30 @@
         {
           "value": "cl",
           "label": "Chile"
+        }
+      ]
+    },
+    {
+      "key": "quality",
+      "label": "Calidad de Pluto TV",
+      "type": "select",
+      "default": "720p",
+      "options": [
+        {
+          "value": "720p",
+          "label": "720p"
+        },
+        {
+          "value": "1080p",
+          "label": "1080p (experimental)"
+        },
+        {
+          "value": "2k",
+          "label": "2K (experimental)"
+        },
+        {
+          "value": "4k",
+          "label": "4K (experimental)"
         }
       ]
     },
