@@ -1,7 +1,7 @@
 {
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "apiVersion": 3,
   "entry": "plugin.js",
   "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV",
@@ -35,17 +35,50 @@
       "type": "select",
       "default": "us",
       "options": [
-        { "value": "us", "label": "Estados Unidos" },
-        { "value": "es", "label": "Espana" },
-        { "value": "mx", "label": "Mexico / Latinoamerica" },
-        { "value": "ca", "label": "Canada" },
-        { "value": "gb", "label": "Reino Unido" },
-        { "value": "de", "label": "Alemania" },
-        { "value": "fr", "label": "Francia" },
-        { "value": "it", "label": "Italia" },
-        { "value": "br", "label": "Brasil" },
-        { "value": "ar", "label": "Argentina" },
-        { "value": "cl", "label": "Chile" }
+        {
+          "value": "us",
+          "label": "Estados Unidos"
+        },
+        {
+          "value": "es",
+          "label": "Espana"
+        },
+        {
+          "value": "mx",
+          "label": "Mexico / Latinoamerica"
+        },
+        {
+          "value": "ca",
+          "label": "Canada"
+        },
+        {
+          "value": "gb",
+          "label": "Reino Unido"
+        },
+        {
+          "value": "de",
+          "label": "Alemania"
+        },
+        {
+          "value": "fr",
+          "label": "Francia"
+        },
+        {
+          "value": "it",
+          "label": "Italia"
+        },
+        {
+          "value": "br",
+          "label": "Brasil"
+        },
+        {
+          "value": "ar",
+          "label": "Argentina"
+        },
+        {
+          "value": "cl",
+          "label": "Chile"
+        }
       ]
     },
     {
@@ -54,10 +87,22 @@
       "type": "select",
       "default": "all",
       "options": [
-        { "value": "all",     "label": "Todas (Pluto, Samsung, Roku)" },
-        { "value": "pluto",   "label": "Solo Pluto TV" },
-        { "value": "samsung", "label": "Solo Samsung TV Plus" },
-        { "value": "roku",    "label": "Solo Roku TV" }
+        {
+          "value": "all",
+          "label": "Todas (Pluto, Samsung, Roku)"
+        },
+        {
+          "value": "pluto",
+          "label": "Solo Pluto TV"
+        },
+        {
+          "value": "samsung",
+          "label": "Solo Samsung TV Plus"
+        },
+        {
+          "value": "roku",
+          "label": "Solo Roku TV"
+        }
       ]
     }
   ]
