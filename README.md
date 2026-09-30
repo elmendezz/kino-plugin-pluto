@@ -1,4 +1,4 @@
-# FAST TV Plugin para Kino (Pluto TV, Samsung TV Plus, Roku TV)
+# Mendezino TV (Pluto TV, Samsung TV Plus, Roku TV)
 
 Plugin de canales FAST (*Free Ad-supported Streaming Television*) libres en vivo para la aplicación Kino. Integra **Pluto TV** (con soporte oficial para las listas de BuddyChewChew por países), **Samsung TV Plus** y **Roku TV** con stream directo y re-búsqueda activa ante errores 401 (No autorizado) o 403 (Prohibido/Token expirado).
 
@@ -38,21 +38,4 @@ En Kino ve a **Ajustes > Plugins** y agrega:
 elmendezz/kino-plugin-pluto
 ```
 
-## Pruebas y validación
-
-```bash
-# Validar contrato
-node sdk/validate.mjs .
-
-# Categorías
-node sdk/run.mjs . liveCategories
-
-# Canales de Pluto TV
-node sdk/run.mjs . liveChannels pluto
-
-# Canales de Samsung TV Plus
-node sdk/run.mjs . liveChannels samsung
-
-# Canales de Roku TV
-node sdk/run.mjs . liveChannels roku
-```
+Tambien puedes instalarlo mediante la tienda comunitaria de Kino Plugins como: "Mendezino TV" 

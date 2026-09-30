@@ -1,7 +1,7 @@
 {
   "id": "pluto-tv",
   "name": "Mendezino TV",
-  "version": "2.3.2",
+  "version": "2.3.3",
   "apiVersion": 3,
   "entry": "plugin.js",
   "description": "Canales en vivo de Pluto TV, Samsung TV Plus y Roku TV",
@@ -27,7 +27,7 @@
     "channels"
   ],
   "liveStreamHosts": "any",
-  "color": "#1955FD",
+  "color": "#424242",
   "icon": "icon.png",
   "settings": [
     {
